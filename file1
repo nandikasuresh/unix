@@ -1,0 +1,489 @@
+p1.c
+#include<unistd.h>
+#include<stdio.h>
+int main()
+{
+     printf("Hello - Before fork %d\n",getpid());
+     fork();
+     printf("Bye - After fork %d \n",getpid());
+}
+
+p2.c
+#include<unistd.h>
+#include<stdio.h>
+int main()
+{
+     printf("Hello - Before fork %d \n",getpid());
+     fork();
+     printf("Bye - After fork1 %d \n",getpid());
+     fork();
+     printf("Bye - After fork2 %d \n",getpid());
+     fork();
+     printf("Bye - After fork3 %d \n",getpid());
+}
+
+p3.c
+#include<unistd.h>
+#include<stdio.h>
+int b=10;
+int main(){
+     int fd = 5;
+     printf("%d\n",fd);
+     fd = fork();
+     printf("fd:%d, pid:%d\n",fd,getpid());
+}
+
+p4.c
+#include<unistd.h>
+#include<stdio.h>
+#include<stdlib.h>
+int main(){
+     int fd;
+     fd = fork();
+     if(fd==-1){
+             printf("Error fork\n");
+             exit(0);
+     }
+     if(fd==0){
+             printf("Iam child with pid %d\n",getpid());
+             execlp("ls","ls",NULL);
+     }
+     else{
+             printf("Iam the parent with pid %d\n",getpid());
+     }
+     printf("Both parent and child\n");
+}
+
+p5.c
+#include<unistd.h>
+#include<stdio.h>
+int main(){
+     int fd1,fd2;
+     fd1 = fork();
+     if(fd1==0){
+             printf("C1 %d\n",getpid());
+             int fd3 = fork();
+             if(fd3==0){
+                     printf("C3 %d\n",getpid());
+             }
+     }
+     else{
+             printf("P1 %d\n",getpid());
+             int fd2 = fork();
+             if(fd2==0){
+                     printf("C2 %d\n",getpid());
+             }
+     }
+}
+
+p6.c
+#include<stdio.h>
+#include<unistd.h>
+#include<stdlib.h>
+int main(){
+     int fd1,fd2;
+     fd1 = fork();
+     if(fd1==0){
+             int fd2 = fork();
+             if(fd2==0){
+                     execlp("ls","ls",NULL);
+             }
+             else{
+                     wait(NULL);
+                     execlp("pwd","pwd",NULL);
+             }
+     }
+     else{
+             wait(NULL);
+             int fd3 = fork();
+             if(fd3==0){
+                     execlp("ls","ls","-l",NULL);
+             }
+             else{
+                     wait(NULL);
+                     exit;
+             }
+     }
+}
+
+orphan.c
+#include<stdio.h>
+#include<unistd.h>
+#include<stdlib.h>
+int main()
+{
+     int fd;
+     fd = fork();
+     if(fd == 0){
+             printf("\nIam child going to sleep. My parent id is %d",getppid());
+             sleep(10);
+             printf("\nIam an orphan. My parent is %d",getppid());
+     }
+     else{
+             printf("\nIam the parent with id %d",getpid());
+             exit(0);
+     }
+}
+
+zombie.c
+#include<stdio.h>
+#include<unistd.h>
+#include<stdlib.h>
+int main()
+{
+     int fd;
+     fd = fork();
+     if(fd == 0){
+             printf("\nIam child. Iam going to terminate");
+             exit(0);
+             //The child terminates with exit value 0 to be returned to parent
+     }
+     else{
+             sleep(10);
+             wait(NULL);//Collects the return value of child
+             printf("\nIam the parent\n");
+     }
+}
+
+/*Parent is sleeping without collecting the exit status of child.
+
+So child entry will be still there in process table eventhough it completed*/
+
+
+pipe() -> system call to create a temporary storage location(file) to share data between processes
+
+* No name is given to the storage. Hence known as unnamed pipes.
+
+* Usually the size of pipe is 2046 bytes in older versions.
+
+* Data is read in FIFO order(byte by byte).
+
+* Data once read cannot be read again, it will be removed from pipe.
+
+
+pipe.c
+
+#include<stdio.h>
+
+#include<unistd.h>
+
+int main()
+
+{
+
+     int fd[2];
+
+     char BUF[5];
+
+     pipe(fd);
+
+     write(fd[1], "Hai", 3);
+
+     read(fd[0], BUF, 3);
+
+     printf("%s",BUF);
+
+}
+
+
+pipe2.c
+
+#include<stdio.h>
+
+#include<unistd.h>
+
+int main()
+
+{
+
+     int fd, pd[2];
+
+     pipe(pd);
+
+     fd = fork();
+
+     if(fd==0)
+
+     {
+
+             dup2(pd[1],1);
+
+             close(pd[0]);
+
+             execlp("ls","ls",NULL);
+
+     }
+
+     else
+
+     {
+
+             wait(NULL);
+
+             dup2(pd[0],0);
+
+             close(pd[1]);
+
+             /*closes the writing end of pipe because
+
+             the process is only going to read from pipe and perform wc*/
+
+             execlp("wc","wc",NULL);
+
+     }
+
+}
+
+
+pipe3.c
+
+#include<stdio.h>
+
+#include<unistd.h>
+
+#include<stdlib.h>
+
+int main()
+
+{
+
+     int fd, pd[2];
+
+     pipe(pd);
+
+     fd = fork();
+
+     if(fd==0)
+
+     {
+
+             int fd1, pd1[2];
+
+             pipe(pd1);
+
+             fd1 = fork();
+
+             if(fd1==0)
+
+             {
+
+                     dup2(pd1[1],1);
+
+                     close(pd1[0]);
+
+                     execlp("cat","cat","notes.txt",NULL);
+
+             }
+
+             else
+
+             {
+
+                     wait(NULL);
+
+                     dup2(pd1[0],0);
+
+                     close(pd1[1]);
+
+                     dup2(pd[1],1);
+
+                     close(pd[0]);
+
+                     execlp("grep","grep","Data",NULL);
+
+             }
+
+     }
+
+     else
+
+     {
+
+             wait(NULL);
+
+             dup2(pd[0],0);
+
+             close(pd[1]);
+
+             execlp("wc","wc","-l",NULL);
+
+     }
+
+}
+
+
+File related System Calls
+
+1) Cat command implementation
+
+int main()
+
+{
+
+int fd;
+
+char buffer[10];
+
+fd = open(“filename”,mode);
+
+while(a = read(fd, buffer, 10){
+
+write(fd, buffer, a);
+
+}
+
+close(fd);
+
+}
+
+2) cp command 
+
+cp a.txt b.txt (./a.out    a.txt->b.txt )
+
+Open 2 files (a.txt(read mode) and b.txt(write mode))
+
+Read contents of a.txt
+
+read( )
+
+And write contents into b.txt
+
+write()
+
+Close the 2 files
+
+close()
+
+close()
+
+
+pgm1.c
+
+#include<stdio.h>
+
+int main()
+
+{
+
+     printf("Hello world");
+
+}
+
+Compile
+
+gcc -o p1 pgm1.c (instead of a.out) 
+
+
+forkpgm1.c
+
+#include<unistd.h>
+
+#include<stdio.h>
+
+int main()
+
+{
+
+     int fd;
+
+     fd=fork();
+
+     if(fd==0)
+
+     {
+
+             execlp("./p1","./p1",NULL);
+
+     }
+
+     else
+
+     {
+
+             printf("Parent");
+
+     }
+
+}
+
+Program for thread creation
+thread.c
+#include<pthread.h>
+#include<stdio.h>
+void *mythreadfn(void *vargp){
+     int *threadid = (int *)vargp;
+     printf("Iam a thread with id %d\n",*threadid);
+    printf("Entering into critical section %d\n",*threadid);
+     sleep(3);
+     printf("Exiting critical section %d\n",*threadid);
+}
+int main()
+{
+     pthread_t tid1, tid2, tid3;
+     pthread_create(&tid1,NULL,mythreadfn,(void *)&tid1);
+     pthread_create(&tid2,NULL,mythreadfn,(void *)&tid2);
+     pthread_create(&tid3,NULL,mythreadfn,(void *)&tid3);
+     pthread_join(tid1,NULL);
+     pthread_join(tid2,NULL);
+     pthread_join(tid3,NULL);
+     return 0;
+}
+
+Compile
+gcc thread.c -lpthread
+
+Semaphore.c
+#include<pthread.h>
+#include<stdio.h>
+#include<semaphore.h>
+sem_t mutex;//binary semaphore
+void *mythreadfn(void *vargp){
+     int *threadid = (int *)vargp;
+     printf("Iam a thread with id %d\n",*threadid);
+     sem_wait(&mutex);
+     printf("Entering into critical section %d\n",*threadid);
+     sleep(3);
+     printf("Exiting critical section %d\n",*threadid);
+     sem_post(&mutex);
+}
+
+int main()
+{
+     sem_init(&mutex,0,2);
+     pthread_t tid1, tid2, tid3;
+     pthread_create(&tid1,NULL,mythreadfn,(void *)&tid1);
+     pthread_create(&tid2,NULL,mythreadfn,(void *)&tid2);
+     pthread_create(&tid3,NULL,mythreadfn,(void *)&tid3);
+     pthread_join(tid1,NULL);
+     pthread_join(tid2,NULL);
+     pthread_join(tid3,NULL);
+     return 0;
+}
+
+Tunnel.c
+#include<pthread.h>
+#include<stdio.h>
+#include<semaphore.h>
+sem_t mutex;//binary semaphore
+void *mythreadfn(void *vargp){
+     sem_wait(&mutex);
+     printf("Entering into tunnel %s car\n",(char *)vargp);
+     sleep(3);
+     printf("Enterig tunnel %s car\n",(char *)vargp);
+     sem_post(&mutex);
+}
+
+int main()
+{
+     sem_init(&mutex,0,1);
+     char *msg1="North";
+     char *msg2="South";
+     pthread_t tid1, tid2, tid3;
+     pthread_create(&tid1,NULL,mythreadfn,(void *)msg1);
+     pthread_create(&tid2,NULL,mythreadfn,(void *)msg2);
+     pthread_create(&tid3,NULL,mythreadfn,(void *)msg1);
+     pthread_join(tid1,NULL);
+     pthread_join(tid2,NULL);
+     pthread_join(tid3,NULL);
+     return 0;
+}
