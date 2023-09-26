@@ -142,268 +142,101 @@ int main()
              sleep(10);
              wait(NULL);//Collects the return value of child
              printf("\nIam the parent\n");
-     }
+    }
 }
-
-/*Parent is sleeping without collecting the exit status of child.
-
-So child entry will be still there in process table eventhough it completed*/
-
-
-pipe() -> system call to create a temporary storage location(file) to share data between processes
-
-* No name is given to the storage. Hence known as unnamed pipes.
-
-* Usually the size of pipe is 2046 bytes in older versions.
-
-* Data is read in FIFO order(byte by byte).
-
-* Data once read cannot be read again, it will be removed from pipe.
-
 
 pipe.c
-
 #include<stdio.h>
-
 #include<unistd.h>
-
 int main()
-
 {
-
      int fd[2];
-
      char BUF[5];
-
      pipe(fd);
-
      write(fd[1], "Hai", 3);
-
      read(fd[0], BUF, 3);
-
      printf("%s",BUF);
-
 }
-
 
 pipe2.c
-
 #include<stdio.h>
-
 #include<unistd.h>
-
 int main()
-
 {
-
      int fd, pd[2];
-
      pipe(pd);
-
      fd = fork();
-
      if(fd==0)
-
      {
-
              dup2(pd[1],1);
-
              close(pd[0]);
-
              execlp("ls","ls",NULL);
-
      }
-
      else
-
      {
-
              wait(NULL);
-
              dup2(pd[0],0);
-
              close(pd[1]);
-
              /*closes the writing end of pipe because
-
              the process is only going to read from pipe and perform wc*/
-
              execlp("wc","wc",NULL);
-
      }
-
 }
-
 
 pipe3.c
-
 #include<stdio.h>
-
 #include<unistd.h>
-
 #include<stdlib.h>
-
 int main()
-
 {
-
      int fd, pd[2];
-
      pipe(pd);
-
      fd = fork();
-
      if(fd==0)
-
      {
-
              int fd1, pd1[2];
-
              pipe(pd1);
-
              fd1 = fork();
-
              if(fd1==0)
-
              {
-
                      dup2(pd1[1],1);
-
                      close(pd1[0]);
-
                      execlp("cat","cat","notes.txt",NULL);
-
              }
-
              else
-
              {
-
                      wait(NULL);
-
                      dup2(pd1[0],0);
-
                      close(pd1[1]);
-
                      dup2(pd[1],1);
-
                      close(pd[0]);
-
                      execlp("grep","grep","Data",NULL);
-
              }
-
      }
-
      else
-
      {
-
              wait(NULL);
-
              dup2(pd[0],0);
-
              close(pd[1]);
-
              execlp("wc","wc","-l",NULL);
-
      }
-
 }
-
-
-File related System Calls
-
-1) Cat command implementation
-
-int main()
-
-{
-
-int fd;
-
-char buffer[10];
-
-fd = open(“filename”,mode);
-
-while(a = read(fd, buffer, 10){
-
-write(fd, buffer, a);
-
-}
-
-close(fd);
-
-}
-
-2) cp command 
-
-cp a.txt b.txt (./a.out    a.txt->b.txt )
-
-Open 2 files (a.txt(read mode) and b.txt(write mode))
-
-Read contents of a.txt
-
-read( )
-
-And write contents into b.txt
-
-write()
-
-Close the 2 files
-
-close()
-
-close()
-
-
-pgm1.c
-
-#include<stdio.h>
-
-int main()
-
-{
-
-     printf("Hello world");
-
-}
-
-Compile
-
-gcc -o p1 pgm1.c (instead of a.out) 
-
 
 forkpgm1.c
-
 #include<unistd.h>
-
 #include<stdio.h>
-
 int main()
-
 {
-
      int fd;
-
      fd=fork();
-
      if(fd==0)
-
      {
-
              execlp("./p1","./p1",NULL);
-
      }
-
      else
-
      {
-
              printf("Parent");
-
      }
-
 }
 
 Program for thread creation
@@ -446,7 +279,6 @@ void *mythreadfn(void *vargp){
      printf("Exiting critical section %d\n",*threadid);
      sem_post(&mutex);
 }
-
 int main()
 {
      sem_init(&mutex,0,2);
@@ -459,7 +291,6 @@ int main()
      pthread_join(tid3,NULL);
      return 0;
 }
-
 Tunnel.c
 #include<pthread.h>
 #include<stdio.h>
@@ -472,7 +303,6 @@ void *mythreadfn(void *vargp){
      printf("Enterig tunnel %s car\n",(char *)vargp);
      sem_post(&mutex);
 }
-
 int main()
 {
      sem_init(&mutex,0,1);
