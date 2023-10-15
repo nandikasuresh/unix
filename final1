@@ -1,0 +1,376 @@
+/*Attaching a shared memory to an address space*/
+/*server*/
+#include <sys/types.h>
+#inlcude <sys/ipc.h>
+#include <sys/shm.h>
+#inlcude <stdio.h>
+#include <stdlib.h>
+
+int shm_id;
+key_t mem_key;
+int *shm_ptr;
+
+mem_key = ftok(".", 'a');
+ 
+shm_id = shmget(mem_key, 4*sizeof(int), IP_CREAT | 0666);
+
+if (shm_id < 0)
+{
+	printf("Error");
+	exit(1);
+}
+
+shm_ptr = (int*)shmat(shm_id, NULL, 0);
+
+if ((int)shm_ptr == -1)
+{
+	printf("Error");
+	exit(1);
+}
+
+/*client*/
+#include <sys/types.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int shm_id;
+key_t mem_key;
+int *shm_ptr;
+
+mem_key = ftok(".", 'a');
+
+shm_id = shmget(shm_id, 4*sizeof(int), 0666);
+
+if (mem_key < 0)
+{
+	printf("Error");
+	exit(1);
+}
+
+shm_ptr = (int*)shmat(shm_id, NULL, 0);
+
+if ((int)shm_ptr == -1)
+{
+	printf("Error");
+	exit(1);
+}
+
+/*Two different processes communicating via shared memory we develop two programs here that illustrate the passing of a simple piece of memory (a string) between the processes if running simultaneously:*/
+/*server*/
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define SHMSIZE 27
+
+int main()
+{
+
+	int shmid;
+	key_t key;
+	char *s, *shm;
+	char c;
+
+	key = 5678
+
+	if ((shmid = shmget(key, SHMSIZE, IPC_CREAT | 0666)) < 0 )
+	{
+		perror("shmget");
+		exit(1);
+	}
+
+	if ((shm = shmat(shmid, NULL, 0)) == (char*)-1)
+	{
+		perror("shmat");
+		exit(1);
+	}
+
+	s = shm
+
+	for (c = 'a' ; c <= 'z' ; c++)
+	{
+		*s++ = c;
+	}
+	*s = NULL;
+
+	while (*shm != '*')
+	{
+		sleep(1);
+	}
+	exit(0);
+}
+
+/*client*/
+#include <sys/types.h>
+#include <sys/ipc.h>
+#inlcude <sys/shm.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define SHMSIZE 27
+
+int main()
+{
+	int shmid;
+	key_t key;
+	char *s, *shm;
+
+	key = 5678;
+
+	if ((shmid = shmget(key, SHMSIZE, 0666)) < 0)
+	{
+		perror("shmget");
+		exit(1);
+	}
+
+	if ((shm = shmat(smhid, NULL, 0)) == (char*)-1)
+	{
+		perror("shmat");
+		exit(1);
+	}
+	
+	for (s = shm ; *s != NULL ; s++)
+	{
+		putchar(*s);
+	}
+	putchar("\n");
+
+	*shm = '*';
+	printf("Its done from clienet");
+
+	exit(0);
+}
+
+
+/*Parent and Child processes communicating via shared memory*/
+/*parent_child.c */
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+int main(void)
+{
+	int shmid;
+	char *shmPtr;
+	int n;
+	if (fork( ) == 0)
+	{
+		sleep(5); /* UUPS */
+		if( (shmid = shmget(2041, 32, 0)) == -1 )
+		{
+			exit(1);
+		}
+		shmPtr = shmat(shmid, 0, 0);
+		if (shmPtr == (char *) -1)
+			exit(2);
+		printf ("\nChild Reading ....\n\n");
+		for (n = 0; n < 26; n++)
+			putchar(shmPtr[n]);
+		putchar('\n'); }
+	else
+	{
+		if( (shmid = shmget(2041, 32, 0666 | IPC_CREAT)) 		== -1 )
+		{	
+			exit(1);
+		}
+		shmPtr = shmat(shmid, 0, 0);
+		if (shmPtr == (char *) -1)
+			exit(2);
+		for (n = 0; n < 26; n++)
+			shmPtr[n] = 'a' + n;
+		printf ("Parent Writing ....\n\n") ;
+		for (n = 0; n < 26; n++)
+			putchar(shmPtr[n]);
+		putchar('\n'); wait(NULL);
+		shmdt(NULL);
+		if( shmctl(shmid, IPC_RMID, NULL) == -1 )
+		{
+			perror("shmctl");
+			exit(-1);
+		}
+	}
+	exit(0);
+}
+
+-- One parent places characters in shared memory, and child reads it.
+
+/*A program that creates a shared memory segment and waits until two other separate
+processes writes something into that shared memory segment after which it prints what
+is written in shared memory. For the communication between the processes to take
+place assume that the process 1 writes 1 in first position of shared memory and waits;
+process 2 writes 2 in first position of shared memory and goes on to write 'hello' and
+
+then process 3 writes 3 in first position of shared memory and goes on to write
+'memory' and finally the process 1 prints what is in shared memory written by
+two other processes*/
+
+/* process1.c */
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#define SHMSIZE 27
+main()
+{
+	char c;
+	int shmid;
+	key_t key;
+	char *shm, *s;
+	/*
+	* We'll name our shared memory segment
+	* "5678".
+	*/
+	key = 5678;
+	/*
+	* Create the
+	segment. */
+	if ((shmid = shmget(key, SHMSIZE, IPC_CREAT | 0666)) 	< 0)
+	{ 
+		perror("shmget");
+		exit(1);
+	}
+	/*
+	* Now we attach the segment to our data space.
+	*/
+	if ((shm = shmat(shmid, NULL, 0)) == (char *) -1)
+	{ 
+		perror("shmat");
+		exit(1);
+	}
+	/*
+	* Now put 1 in first
+	place */
+	s=shm;
+	*s++='1';
+	*s=NULL;
+	printf("Process1:- I have put the message %s\n",shm);
+	/*
+	* Finally, we wait until the other process
+
+	* changes the first character of our memory
+	*/
+	while (*shm != '2' && *shm+6 != 'o')
+		sleep(1);
+	printf("Process1:- Process2 has put the message
+	%s\n",shm); while (*shm != '3' && *shm+7 != 'y')
+	sleep(1);
+	printf("Process1:- Process3 has put the message %s	\n",shm);
+	printf("Process1:- I am quiting\n");
+	exit(0);
+}
+/* process2.c */
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#define SHMSIZE 27
+main()
+{
+	char c;
+	int shmid;
+	key_t key;
+	char *shm;
+	/*	
+	* We'll name our shared memory segment.
+	*/
+	key = 5678;
+	/*
+	* Create the segment.
+	*/
+	if ((shmid = shmget(key, SHMSIZE, 0666)) < 0)
+	{ 
+		perror("shmget");
+		exit(1);
+	}
+	/*
+	* Now we attach the segment to our data space.
+	*/
+	if ((shm = shmat(shmid, NULL, 0)) == (char *) -1)
+	{ 
+		perror("shmat");
+		exit(1);
+	}
+	/*
+
+	* Now put 1 in first
+	place */
+	*shm++='2';
+	*shm++=' ';
+	*shm++='h';
+	*shm++='e';
+	*shm++='l';
+	*shm++='l';
+	*shm++='o';
+	*shm = NULL;
+	exit(0);
+}
+/* process3.c */
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#define SHMSIZE 27
+main()
+{
+	char c;
+	int shmid;
+	key_t key;
+	char *shm, *s;
+	/*
+	* We'll name our shared memory segment.
+	*/
+	key = 5678;
+	/*
+	* Create the
+	segment. */
+	if ((shmid = shmget(key, SHMSIZE, 0666)) < 0)
+	{ 
+		perror("shmget");
+		exit(1);
+	}	
+	/*
+	* Now we attach the segment to our data space.
+	*/
+	if ((shm = shmat(shmid, NULL, 0)) == (char *) -1)
+	{
+		perror("shmat");
+		exit(1);
+	}
+	/*
+	* Now put 1 in first place
+	
+	*/
+	*shm++='3';
+	*shm++=' ';
+	*shm++='m';
+	*shm++='e';
+	*shm++='m';
+	*shm++='o';
+	*shm++='r';
+	*shm++='y';
+	*shm = NULL;
+	exit(0);
+}
+Sample Output:
+mammoth> gcc process3.c
+mammoth> gcc process1.c -o process1
+mammoth> gcc process2.c -o process2
+mammoth> gcc process3.c -o process3
+mammoth> process1 &
+[2] 25256
+mammoth> Process1:- I have put the message 1
+mammoth> process2
+[3] 25259
+mammoth>
+[3] Done process2
+Process1:- Process2 has put the message 2 hello
+mammoth> process3
+[3] 25263
+mammoth>
+[3] Done process3
+Process1:- Process3 has put the message 3 memory
+Process1:- I am quitting
+[2] Done process1
