@@ -1,0 +1,233 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#define NUM_CITIES 10
+#define NUM_YEARS 5
+
+// Structure to represent city data
+struct CityData {
+    char name[50];
+    int population[NUM_YEARS];
+};
+
+// Global data
+struct CityData cities[NUM_CITIES];
+int maxPopulation = 0;
+char maxPopulationCity[50];
+pthread_mutex_t mutex;
+
+// Function to read city data from a file
+void readCityData() {
+    FILE *file = fopen("city_data.txt", "r");
+    if (file == NULL) {
+        perror("fopen");
+        exit(1);
+    }
+
+    for (int i = 0; i < NUM_CITIES; i++) {
+        fscanf(file, "%s", cities[i].name);
+        for (int j = 0; j < NUM_YEARS; j++) {
+            fscanf(file, "%d", &cities[i].population[j]);
+        }
+    }
+
+    fclose(file);
+}
+
+// Thread function to find the maximum population
+void* findMaxPopulation(void* arg) {
+    for (int i = 0; i < NUM_CITIES; i++) {
+        int localMax = 0;
+        for (int j = 0; j < NUM_YEARS; j++) {
+            if (cities[i].population[j] > localMax) {
+                localMax = cities[i].population[j];
+            }
+        }
+
+        pthread_mutex_lock(&mutex);
+        if (localMax > maxPopulation) {
+            maxPopulation = localMax;
+            strncpy(maxPopulationCity, cities[i].name, sizeof(maxPopulationCity));
+        }
+        pthread_mutex_unlock(&mutex);
+    }
+
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t threads[NUM_CITIES];
+    pthread_mutex_init(&mutex, NULL);
+
+    // Read city data from a file
+    readCityData();
+
+    // Create threads to find maximum population
+    for (int i = 0; i < NUM_CITIES; i++) {
+        pthread_create(&threads[i], NULL, findMaxPopulation, NULL);
+    }
+
+    // Wait for the threads to finish
+    for (int i = 0; i < NUM_CITIES; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // Print the city with the maximum population
+    printf("City with the maximum population: %s (Population: %d)\n", maxPopulationCity, maxPopulation);
+
+    pthread_mutex_destroy(&mutex);
+
+    return 0;
+}
+
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define BUFFER_SIZE 5
+#define MAX_ITEMS 5
+
+int buffer[BUFFER_SIZE];
+int in = 0;
+int out = 0;
+int produced_count = 0;
+int consumed_count = 0;
+
+pthread_mutex_t mutex;
+pthread_cond_t full;
+pthread_cond_t empty;
+
+void* producer(void* arg) {
+   int item = 1;
+
+   while (produced_count < MAX_ITEMS) {
+      pthread_mutex_lock(&mutex);
+
+      while (((in + 1) % BUFFER_SIZE) == out) {
+         pthread_cond_wait(&empty, &mutex);
+      }
+
+      buffer[in] = item;
+      printf("Produced: %d", item);
+      item++;
+      in = (in + 1) % BUFFER_SIZE;
+
+      produced_count++;
+
+      pthread_cond_signal(&full);
+      pthread_mutex_unlock(&mutex);
+   }
+
+   pthread_exit(NULL);
+}
+
+void* consumer(void* arg) {
+   while (consumed_count < MAX_ITEMS) {
+      pthread_mutex_lock(&mutex);
+
+      while (in == out) {
+         pthread_cond_wait(&full, &mutex);
+      }
+
+      int item = buffer[out];
+      printf("Consumed: %d", item);
+      out = (out + 1) % BUFFER_SIZE;
+
+      consumed_count++;
+
+      pthread_cond_signal(&empty);
+      pthread_mutex_unlock(&mutex);
+   }
+
+   pthread_exit(NULL);
+}
+
+int main() {
+   pthread_t producerThread, consumerThread;
+
+   pthread_mutex_init(&mutex, NULL);
+   pthread_cond_init(&full, NULL);
+   pthread_cond_init(&empty, NULL);
+
+   pthread_create(&producerThread, NULL, producer, NULL);
+   pthread_create(&consumerThread, NULL, consumer, NULL);
+
+   pthread_join(producerThread, NULL);
+   pthread_join(consumerThread, NULL);
+
+   pthread_mutex_destroy(&mutex);
+   pthread_cond_destroy(&full);
+   pthread_cond_destroy(&empty);
+
+   return 0;
+}
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+
+#define NUM_EATERS 3
+#define NUM_PIZZAS 5
+
+sem_t pizza_semaphore;
+
+void *pizza_maker(void *arg) {
+    while (1) {
+        // Wait for all pizzas to be eaten
+        for (int i = 0; i < NUM_PIZZAS; i++) {
+            sem_wait(&pizza_semaphore);
+        }
+
+        printf("Pizza maker is making pizzas!\n");
+
+        // Make new pizzas
+        for (int i = 0; i < NUM_PIZZAS; i++) {
+            sem_post(&pizza_semaphore);
+        }
+    }
+}
+
+void *pizza_eater(void *arg) {
+    int eater_id = *((int *)arg);
+    
+    while (1) {
+        sem_wait(&pizza_semaphore);
+        printf("Pizza eater %d is eating a pizza.\n", eater_id);
+        sem_post(&pizza_semaphore);
+    }
+}
+
+int main() {
+    pthread_t maker_thread, eater_threads[NUM_EATERS];
+    int eater_ids[NUM_EATERS];
+
+    sem_init(&pizza_semaphore, 0, NUM_PIZZAS);  // Initialize semaphore with NUM_PIZZAS permits
+
+    pthread_create(&maker_thread, NULL, pizza_maker, NULL);
+
+    for (int i = 0; i < NUM_EATERS; i++) {
+        eater_ids[i] = i + 1;
+        pthread_create(&eater_threads[i], NULL, pizza_eater, &eater_ids[i]);
+    }
+
+    pthread_join(maker_thread, NULL);
+
+    for (int i = 0; i < NUM_EATERS; i++) {
+        pthread_join(eater_threads[i], NULL);
+    }
+
+    sem_destroy(&pizza_semaphore);
+
+    return 0;
+}
