@@ -1,0 +1,154 @@
+/*A barbershop consists of a waiting room with a bench, and the barber room containing the barber chair and 3 chairs for customers. If there are no customers to be served, the barber goes to sleep. If a customer enters the barbershop and all the 3 chairs are occupied, then the customer can wait in the bench in the waiting room. If the waiting room bench is also full with 3 customers, then the new customers will leave the shop. If the barber is busy, but chairs are available, then the customer sits in one of the free chairs. If the barber is asleep, the customer wakes up the barber. Write a program using threads to coordinate the barber and the customers.*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+
+#define NUM_CUSTOMERS 10
+
+pthread_mutex_t shop_mutex;
+sem_t barber_sem, customer_sem, customer_done_sem;
+
+int customers_waiting = 0;
+int barber_sleeping = 0;
+
+void *barber_thread(void *arg) {
+    while (1) {
+        pthread_mutex_lock(&shop_mutex);
+
+        if (customers_waiting == 0) {
+            // No customers, barber sleeps
+            barber_sleeping = 1;
+            pthread_mutex_unlock(&shop_mutex);
+
+            printf("Barber is sleeping.\n");
+            sem_wait(&barber_sem); // Wait until a customer wakes up the barber
+
+            barber_sleeping = 0;
+            printf("Barber wakes up.\n");
+        } else {
+            // Serve a customer
+            customers_waiting--;
+            printf("Barber is serving a customer.\n");
+            pthread_mutex_unlock(&shop_mutex);
+
+            // Simulate the time it takes to cut hair
+            sleep(2);
+
+            // Notify the customer that the haircut is done
+            sem_post(&customer_done_sem);
+        }
+    }
+}
+
+void *customer_thread(void *arg) {
+    pthread_mutex_lock(&shop_mutex);
+
+    if (customers_waiting < 3) {
+        customers_waiting++;
+        printf("Customer is waiting in the shop.\n");
+
+        if (barber_sleeping) {
+            sem_post(&barber_sem); // Wake up the barber
+        }
+        pthread_mutex_unlock(&shop_mutex);
+        sem_wait(&customer_done_sem); // Wait for the haircut to finish
+    } else {
+        pthread_mutex_unlock(&shop_mutex);
+        printf("Customer leaves the shop because it's full.\n");
+    }
+}
+
+int main() {
+    pthread_t barber, customers[NUM_CUSTOMERS];
+
+    pthread_mutex_init(&shop_mutex, NULL);
+    sem_init(&barber_sem, 0, 0);
+    sem_init(&customer_sem, 0, 0);
+    sem_init(&customer_done_sem, 0, 0);
+
+    pthread_create(&barber, NULL, barber_thread, NULL);
+
+    for (int i = 0; i < NUM_CUSTOMERS; i++) {
+        pthread_create(&customers[i], NULL, customer_thread, NULL);
+        sleep(1); // Add a delay between customer arrivals
+    }
+
+    pthread_join(barber, NULL);
+
+    for (int i = 0; i < NUM_CUSTOMERS; i++) {
+        pthread_join(customers[i], NULL);
+    }
+
+    pthread_mutex_destroy(&shop_mutex);
+    sem_destroy(&barber_sem);
+    sem_destroy(&customer_sem);
+    sem_destroy(&customer_done_sem);
+
+    return 0;
+}
+
+
+/*Suppose a two-way (north-south), two-lane road contains a long one-lane tunnel. A southbound (or northbound) car can only use the tunnel if there are no oncoming cars in the tunnel. Because of accidents, a signaling system has been installed at the entrances to the tunnel. When a car approaches the tunnel, a sensor notifies the controller computer by calling a function arrive with the car’s travel direction (north or south). When a car exits the tunnel, the sensor notifies the controller computer by calling depart with the car’s travel direction. The traffic controller sets the signal lights: green means go, and red means stop. Construct a program for controlling the lights such that they operate correctly even when most cars approach the tunnel from one direction. (Solution without using traffic light is also accepted)*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define NORTH 0
+#define SOUTH 1
+
+pthread_mutex_t mutex;
+pthread_cond_t north_queue, south_queue;
+int cars_waiting[2] = {0, 0}; // Number of cars waiting in each direction
+int current_direction = NORTH; // Current direction allowed to pass
+
+void arrive(int direction) {
+    pthread_mutex_lock(&mutex);
+    if (direction != current_direction || cars_waiting[direction] > 0) {
+        cars_waiting[direction]++;
+        pthread_cond_wait(direction == NORTH ? &north_queue : &south_queue, &mutex);
+    }
+    pthread_mutex_unlock(&mutex);
+    printf("Car arriving from %s\n", direction == NORTH ? "North" : "South");
+}
+
+void depart(int direction) {
+    pthread_mutex_lock(&mutex);
+    printf("Car departing from %s\n", direction == NORTH ? "North" : "South");
+    if (--cars_waiting[direction] == 0) {
+        current_direction = 1 - direction; // Change the direction
+        pthread_cond_broadcast(direction == NORTH ? &south_queue : &north_queue);
+    }
+    pthread_mutex_unlock(&mutex);
+}
+
+void *car_thread(void *arg) {
+    int direction = *(int *)arg;
+    arrive(direction);
+    // Simulate passing through the tunnel
+    depart(direction);
+    return NULL;
+}
+
+int main() {
+    pthread_t car_threads[10]; // Simulating 10 cars
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&north_queue, NULL);
+    pthread_cond_init(&south_queue, NULL);
+
+    int directions[] = {NORTH, SOUTH, NORTH, SOUTH, NORTH, SOUTH, NORTH, SOUTH, NORTH, SOUTH};
+
+    for (int i = 0; i < 10; i++) {
+        pthread_create(&car_threads[i], NULL, car_thread, &directions[i]);
+    }
+
+    for (int i = 0; i < 10; i++) {
+        pthread_join(car_threads[i], NULL);
+    }
+
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&north_queue);
+    pthread_cond_destroy(&south_queue);
+
+    return 0;
+}
