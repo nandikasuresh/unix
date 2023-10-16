@@ -1,0 +1,258 @@
+/*Write a C program to implement the following game. 
+The parent program P first creates two shared memory segments, and then spawns two child processes C and D. 
+One of the two shared memory segment is meant for communications between P and C, and the other for communications between P and D. 
+
+Now, a loop runs as follows. 
+In each iteration (also called round), P first randomly chooses one of the two flags: MIN and MAX (the choice randomly varies from one iteration to another). 
+Each of the two child processes C and D generates a random positive integer and sends that to P via its shared memory. 
+P reads the two integers; let these be c and d. 
+If P has chosen MIN, then the child who sent the smaller of c and d gets one point. 
+If P has chosen MAX, then the sender of the larger of c and d gets one point. 
+If c = d, then this round is ignored. 
+The child process who first obtains five points wins the game. 
+During each iteration of the game, P should print appropriate messages (like P’s choice of the flag, the integers received from C and D, which child gets the point, the current scores of C and D) in order to let the user know how the game is going on. 
+C and D exits after five iterations, then the parent process P also exits. 
+*/
+#include<stdio.h>
+#include<sys/shm.h>
+#include<sys/wait.h>
+#include<sys/types.h>
+#include<unistd.h>
+#include<string.h>
+#include<time.h>
+#include<stdlib.h>
+
+#define SHM_SIZE 1024
+
+struct SharedData{
+        int value;
+};
+
+int generateRandom(){
+        return rand()%100+1;
+}
+
+int main(){
+        srand(time(NULL));
+        int shmid_C = shmget(IPC_PRIVATE, SHM_SIZE, IPC_CREAT | 0666);
+        if(shmid_C < 0){
+                perror("shmget");
+                exit(1);
+        }
+        struct SharedData *shared = shmat(shmid_C, NULL, 0);
+        shared->value = 0;
+
+        int shmid_D = shmget(IPC_PRIVATE, SHM_SIZE, IPC_CREAT | 0666);
+        if(shmid_D<0){
+                perror("shmget");
+                exit(1);
+        }
+
+        struct SharedData *shared_D = shmat(shmid_D, NULL,0);
+        shared_D -> value = 0;
+
+        pid_t pid_C = fork();
+        if(pid_C == 0){
+                for(int round = 1; round<=5;round++){
+                        int random = generateRandom();
+                        shared->value = random;
+                        printf("\nRound : %d ; Int value : %d",round,random);
+                }
+                exit(0);
+        }
+        else if(pid_C < 0){
+                perror("fork failed");
+        }
+
+        pid_t pid_D = fork();
+        if(pid_D == 0){
+                for(int round = 1; round<=5; round++){
+                        int random = generateRandom();
+                        shared_D->value = random;
+                        printf("\nRound : %d ; Int value : %d",round,random);
+                }
+                exit(0);
+        }
+        else if(pid_D < 0){
+                perror("fork failed");
+        }
+
+        int cpoint = 0;
+        int dpoint = 0;
+        for(int round = 1;round<=5;round++){
+                int choice = rand()%2;
+                char *flag = (choice == 0) ? "MIN" : "MAX" ;
+                int valuec = shared->value;
+                int valued = shared_D->value;
+                printf("\nParent: Round %d, Choice: %s, Values: C=%d, D=%d, ", round, flag, valuec, valued);
+                if(choice == 0){
+                        if(valuec<valued){
+                                cpoint++;
+                                printf("\nChild C gets a point");
+                        }
+                        else if(valued<valuec){
+                                dpoint++;
+                                printf("\nChild D gets a point");
+                        }
+                        else{
+                                printf("\nRound ignored");
+                        }
+                }
+                else{
+                        if(valuec>valued){
+                                cpoint++;
+                                printf("\nChild C gets a point");
+                        }
+                        else if(valued>valuec){
+                                dpoint++;
+                                printf("\nChild D gets a point");
+                        }
+                        else{
+                                printf("\nRound ignored");
+                        }
+                }
+
+                printf("\nTotal points : C=%d ; D=%d",cpoint,dpoint);
+                }
+if (cpoint > dpoint) {
+        printf("\nChild C wins the game!\n");
+    } else if (dpoint > cpoint) {
+        printf("\nChild D wins the game!\n");
+    } else {
+        printf("\nIt's a tie! No one wins.\n");
+    }
+
+    // Wait for child processes to exit
+    wait(NULL);
+    wait(NULL);
+  // Detach and remove shared memory
+    shmdt(shared);
+    shmdt(shared_D);
+    shmctl(shmid_C, IPC_RMID, NULL);
+    shmctl(shmid_D, IPC_RMID, NULL);
+
+    return 0;
+}
+
+
+/*Implement a C program that creates a shared memory region and fills it with set of n integers (say n=10). The program should
+Create 2 Child processes
+The Child Process-1 will find the minimum of the numbers from the shared memory region and store it in minimum shared variable.
+The Child Process-2 will find the average of the numbers from the shared memory region and store it in the average shared variable.
+The Parent process will wait for the child processes to complete and then print the minimum and average on the screen. 
+*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/shm.h>
+#include <string.h>
+#include <time.h>
+
+#define SHARED_MEM_SIZE 32
+
+// Struct for shared memory
+struct SharedData {
+    int value;
+};
+
+// Function to generate a random positive integer
+int generateRandomInt() {
+    return rand() % 100 + 1; // Generates a random integer between 1 and 100
+}
+
+int main() {
+    srand(time(NULL)); // Seed for random number generation
+
+    // Create shared memory for communication with child process C
+    int shmid_C = shmget(IPC_PRIVATE, SHARED_MEM_SIZE, IPC_CREAT | 0666);
+    if (shmid_C == -1) {
+        perror("shmget");
+        exit(1);
+    }
+    struct SharedData *shared_C = shmat(shmid_C, NULL, 0);
+    shared_C->value = 0; // Initialize the shared data
+
+    // Create shared memory for communication with child process D
+    int shmid_D = shmget(IPC_PRIVATE, SHARED_MEM_SIZE, IPC_CREAT | 0666);
+    if (shmid_D == -1) {
+        perror("shmget");
+        exit(1);
+    }
+    struct SharedData *shared_D = shmat(shmid_D, NULL, 0);
+    shared_D->value = 0; // Initialize the shared data
+
+    // Create child process C
+    pid_t pid_C = fork();
+    if (pid_C == 0) {
+        for (int round = 1; round <= 5; round++) {
+            int randomValue = generateRandomInt();
+            shared_C->value = randomValue;
+            printf("Child C: Round %d, Sent: %d\n", round, randomValue);
+        }
+        exit(0);
+    } else if (pid_C < 0) {
+        perror("fork");
+    }
+
+    // Create child process D
+    pid_t pid_D = fork();
+    if (pid_D == 0) {
+        for (int round = 1; round <= 5; round++) {
+            int randomValue = generateRandomInt();
+            shared_D->value = randomValue;
+            printf("Child D: Round %d, Sent: %d\n", round, randomValue);
+        }
+        exit(0);
+    } else if (pid_D < 0) {
+        perror("fork");
+    }
+
+    // Parent process
+    int totalPoints_C = 0;
+    int totalPoints_D = 0;
+
+    for (int round = 1; round <= 5; round++) {
+        // Randomly choose MIN or MAX
+        int choice = rand() % 2;
+        char *flag = (choice == 0) ? "MIN" : "MAX";
+
+        int value_C = shared_C->value;
+        int value_D = shared_D->value;
+
+        printf("Parent: Round %d, Choice: %s, Values: C=%d, D=%d, ", round, flag, value_C, value_D);
+
+        if (value_C < value_D) {
+            totalPoints_C++;
+            printf("Child C gets a point.\n");
+        } else if (value_D < value_C) {
+            totalPoints_D++;
+            printf("Child D gets a point.\n");
+        } else {
+            printf("Round ignored.\n");
+        }
+
+        printf("Scores: C=%d, D=%d\n", totalPoints_C, totalPoints_D);
+    }
+
+    if (totalPoints_C > totalPoints_D) {
+        printf("Child C wins the game!\n");
+    } else if (totalPoints_D > totalPoints_C) {
+        printf("Child D wins the game!\n");
+    } else {
+        printf("It's a tie! No one wins.\n");
+    }
+
+    // Wait for child processes to exit
+    wait(NULL);
+    wait(NULL);
+
+    // Detach and remove shared memory
+    shmdt(shared_C);
+    shmdt(shared_D);
+    shmctl(shmid_C, IPC_RMID, NULL);
+    shmctl(shmid_D, IPC_RMID, NULL);
+
+    return 0;
+}
